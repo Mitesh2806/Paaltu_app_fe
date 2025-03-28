@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,26 +10,39 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
-import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const {user, token, checkAuth} = useAuthStore();
+  const { user, checkAuth, logout } = useAuthStore();
 
   useEffect(() => {
     checkAuth();
   }, []);
-  
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/(auth)");
+  };
+
+  // Fallback UI if no user is logged in
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.fallbackText}>No user is logged in</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView>
-        
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
 
@@ -37,16 +50,16 @@ export default function ProfileScreen() {
         <View style={styles.profileSection}>
           <Image
             source={{
-              uri: user.user.profileImage || 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20indian%20man%20smiling%20warm%20friendly',
+              uri: user?.profileImage ||
+                'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20indian%20man%20smiling%20warm%20friendly',
             }}
             style={styles.profileImage}
           />
-          <Text style={styles.name}>{user.user.username || 'Guest User'}</Text>
-          <Text style={styles.username}>{user.user.email}</Text>
+          <Text style={styles.name}>{user?.username || 'Guest User'}</Text>
+          <Text style={styles.username}>{user?.email || ''}</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Your Pets Profiles</Text>
-
         {/* Pet Profiles */}
         <View style={styles.petsContainer}>
           <TouchableOpacity style={styles.petProfile}>
@@ -74,12 +87,12 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-  style={[styles.petProfile, styles.addPetButton]}
-  onPress={() => router.push('/addPetForm')} // or whatever route name you used
->
-  <Ionicons name="add" size={32} color="#666" />
-  <Text style={styles.addPetText}>Add More</Text>
-</TouchableOpacity>
+            style={[styles.petProfile, styles.addPetButton]}
+            onPress={() => router.push('/addPetForm')}
+          >
+            <Ionicons name="add" size={32} color="#666" />
+            <Text style={styles.addPetText}>Add More</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Menu Buttons */}
@@ -87,11 +100,9 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.menuButton}>
             <Text style={styles.menuText}>Playmeets History</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.menuButton}>
             <Text style={styles.menuText}>Community History</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.menuButton}>
             <Text style={styles.menuText}>Settings</Text>
           </TouchableOpacity>
@@ -127,6 +138,12 @@ export default function ProfileScreen() {
 const PINK = '#ff69b4';
 
 const styles = StyleSheet.create({
+  fallbackText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
+    color: '#333',
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -135,15 +152,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
-    // You can adjust the height or padding for spacing
   },
   backButton: {
     backgroundColor: PINK,
-    borderRadius: 24, // Makes it a circle/rounded
+    borderRadius: 24,
     padding: 8,
   },
-
+  logoutButton: {
+    backgroundColor: PINK,
+    borderRadius: 24,
+    padding: 8,
+  },
   /********** Profile Section **********/
   profileSection: {
     alignItems: 'center',
@@ -165,7 +186,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-
   /********** Pet Profiles **********/
   sectionTitle: {
     fontSize: 16,
@@ -211,8 +231,7 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-
-
+  /********** Menu Buttons **********/
   menuContainer: {
     padding: 16,
     gap: 12,
@@ -229,7 +248,7 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-
+  /********** Reviews Section **********/
   reviewsContainer: {
     paddingHorizontal: 16,
     marginBottom: 80,

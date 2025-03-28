@@ -4,28 +4,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
-import {images} from "@/constants/Images"
-
+import { images } from "@/constants/Images";
 
 const CommunityScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [playdates, setPlaydates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [joining, setJoining] = useState(null);
   const router = useRouter();
   const { token, user } = useAuthStore();
+
+  // Determine the current user's ID (adjust property as needed)
+  const currentUserId = user?._id || user?.id;
 
   useEffect(() => {
     const fetchPlaydates = async () => {
       try {
         const response = await fetch('https://paaltu-app-be.onrender.com/api/playdates', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
-        
         if (!response.ok) throw new Error('Failed to fetch playdates');
-        
         const data = await response.json();
         setPlaydates(data);
       } catch (err) {
@@ -39,6 +38,7 @@ const CommunityScreen = () => {
   }, []);
 
   const handleJoin = async (playdateId) => {
+    setJoining(playdateId);
     try {
       const response = await fetch(
         `https://paaltu-app-be.onrender.com/api/playdates/${playdateId}/join`,
@@ -48,23 +48,28 @@ const CommunityScreen = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ userId: user?._id }),
         }
       );
-
-      if (!response.ok) throw new Error('Failed to join playdate');
-
-      setPlaydates(prev => prev.map(pd => 
-        pd._id === playdateId 
-          ? { ...pd, participants: [...pd.participants, user?._id] } 
-          : pd
-      ));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to join playdate');
+      }
+      // Optimistically update local state with the joined participant (using currentUserId)
+      setPlaydates((prev) =>
+        prev.map((pd) =>
+          pd._id === playdateId
+            ? { ...pd, participants: [...pd.participants, currentUserId] }
+            : pd
+        )
+      );
     } catch (err) {
       Alert.alert('Error', err.message);
+    } finally {
+      setJoining(null);
     }
   };
 
-  const filterData = (data)=> {
+  const filterData = (data) => {
     if (!searchQuery.trim()) return data;
     return data.filter((item) => {
       const query = searchQuery.toLowerCase();
@@ -75,43 +80,51 @@ const CommunityScreen = () => {
     });
   };
 
-  const renderPlaymeetCard = (item) => (
-    <View style={styles.playmeetCard} key={item._id}>
-      <Image source={{ uri: item.image }} style={styles.playmeetImage} />
-      <View style={styles.playmeetInfo}>
-        <Text style={styles.playmeetTitle}>{item.title}</Text>
-        <View style={styles.locationContainer}>
-          <MaterialCommunityIcons name="map-marker-outline" size={14} color="#666" />
-          <Text style={styles.locationText}>{item.location}</Text>
+  const renderPlaymeetCard = (item) => {
+    // Safely compare participant IDs
+    const isJoined = item.participants.some(
+      (participant) =>
+        participant && currentUserId && participant.toString() === currentUserId.toString()
+    );
+    return (
+      <TouchableOpacity
+        style={styles.playmeetCard}
+        key={item._id}
+        onPress={() => router.push(`/playdate/${item._id}`)}
+      >
+        <Image source={{ uri: item.image }} style={styles.playmeetImage} />
+        <View style={styles.playmeetInfo}>
+          <Text style={styles.playmeetTitle}>{item.title}</Text>
+          <View style={styles.locationContainer}>
+            <MaterialCommunityIcons name="map-marker-outline" size={14} color="#666" />
+            <Text style={styles.locationText}>{item.location}</Text>
+          </View>
+          <View style={styles.durationContainer}>
+            <Text style={styles.durationText}>{item.duration} </Text>
+            <Text style={styles.participantsText}>{item.participants.length} participant(s)</Text>
+          </View>
         </View>
-        <View style={styles.durationContainer}>
-          <Text style={styles.durationText}>{item.duration} </Text>
-          <Text style={styles.participantsText}>
-            {item.participants.length} participant(s)
-          </Text>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.chatButton}>
+            <Ionicons name="chatbubble-outline" size={20} color="#000" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.joinButton}
+            onPress={() => handleJoin(item._id)}
+            disabled={joining === item._id}
+          >
+            <Text style={styles.joinButtonText}>
+              {joining === item._id ? 'Joining...' : isJoined ? 'Joined' : 'Join now'}
+            </Text>
+          </TouchableOpacity>
         </View>
-      </View>
-    
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.chatButton}>
-          <Ionicons name="chatbubble-outline" size={20} color="#000" />
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.joinButton}
-          onPress={() => handleJoin(item._id)}
-        >
-          <Text style={styles.joinButtonText}>
-            {item.participants.includes(user?._id) ? 'Joined' : 'Join now'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderSection = (title, data) => {
     const filteredData = filterData(data);
     if (filteredData.length === 0) return null;
-    
     return (
       <View style={styles.section} key={title}>
         <View style={styles.sectionHeader}>
@@ -136,7 +149,6 @@ const CommunityScreen = () => {
       </SafeAreaView>
     );
   }
-
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
@@ -147,33 +159,26 @@ const CommunityScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hello, {user.user.username || 'Guest User'}</Text>
-          
+          <Text style={styles.greeting}>Hello, {user?.username || 'Guest User'}</Text>
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.points}>42</Text>
           <Ionicons name="chatbubble-outline" size={24} color="#000" />
         </View>
       </View>
-
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
         <TextInput 
-          placeholder="Search for playmeets..."
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          placeholder="Search for playmeets..." 
+          style={styles.searchInput} 
+          value={searchQuery} 
+          onChangeText={setSearchQuery} 
         />
       </View>
-
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-      >
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Create Card */}
         <View style={styles.createCard}>
           <View style={styles.createCardContent}>
@@ -182,18 +187,14 @@ const CommunityScreen = () => {
               <Text style={styles.createCardTitle}>Playmeets</Text>
             </View>
             <TouchableOpacity 
-            style={styles.createButton} 
-            onPress={() => router.push('/createPlaydate')}
-          >
-            <Text style={styles.createButtonText}>Create</Text>
-          </TouchableOpacity>
-            
+              style={styles.createButton} 
+              onPress={() => router.push('/createPlaydate')}
+            >
+              <Text style={styles.createButtonText}>Create</Text>
+            </TouchableOpacity>
           </View>
-          
-          
           <Image source={images.playmeetheader} style={styles.createCardImage} />
         </View>
-
         {renderSection('All Playdates', playdates)}
       </ScrollView>
     </SafeAreaView>
@@ -239,8 +240,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     height: 44,
-    borderBlockColor:"black",
-    borderWidth:1
+    borderWidth: 1,
   },
   searchIcon: {
     marginRight: 8,
@@ -261,25 +261,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
-    borderBlockColor:"black",
-    borderWidth:2
+    borderWidth: 2,
   },
   createCardContent: {
     flexDirection: 'column',
     alignItems: 'center',
-    marginBottom: 8, // Reduced margin to decrease distance
+    marginBottom: 8,
     justifyContent: 'space-between',
-    gap: 8
+    gap: 8,
   },
   createCardImage: {
-    width: '60%', // Set width to 40% of container
-    height: '100%', // Maintain full height
-    objectFit: 'cover', // Ensure image is fully visible
-    // Center the image
+    width: '60%',
+    height: '100%',
+    objectFit: 'cover',
   },
   createCardText: {
     marginLeft: 12,
-    flex: 1, // Allow text to take remaining space
+    flex: 1,
   },
   createCardTitle: {
     fontSize: 18,
@@ -292,7 +290,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     alignSelf: 'flex-start',
-    marginTop: 4, // Slight margin to separate from text
+    marginTop: 4,
   },
   createButtonText: {
     color: '#FFF',
@@ -323,8 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     width: 250,
-    borderBlockColor:"black",
-    borderWidth:1
+    borderWidth: 1,
   },
   playmeetImage: {
     width: '100%',

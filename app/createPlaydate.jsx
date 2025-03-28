@@ -4,7 +4,7 @@ import {
   Pressable,
   Alert
 } from 'react-native';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MaterialIcons, Ionicons, AntDesign } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -65,6 +65,9 @@ const CreatePlaydate = () => {
       console.log("Error picking image:", error);
     }
   };
+  useEffect(() => {
+    return () => setLoading(false);
+  }, []);
 
   const handleMapPress = (event) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -335,15 +338,25 @@ const CreatePlaydate = () => {
           <Text style={styles.infoText}>Number of people/pets your meet can accommodate</Text>
         </View>
 
-        <TouchableOpacity style={styles.createButton} onPress={handleSubmit}>
-          <Text style={styles.createButtonText}>Create</Text>
-        </TouchableOpacity>
+        <TouchableOpacity 
+  style={[styles.createButton, loading && styles.disabledButton]} 
+  onPress={handleSubmit}
+  disabled={loading}
+>
+  <Text style={styles.createButtonText}>
+    {loading ? 'Creating...' : 'Create'}
+  </Text>
+</TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  disabledButton: {
+    opacity: 0.7,
+    backgroundColor: '#555',
+  },
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',

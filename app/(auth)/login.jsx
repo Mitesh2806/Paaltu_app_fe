@@ -24,7 +24,7 @@ const login = () => {
 
  
   const handleLogin = async() => {
-    const result = await login({email , password});
+    const result = await login(email , password);
     if(!result.success) Alert.alert("Error", result.error);
   };
 
